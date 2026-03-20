@@ -233,6 +233,17 @@ class HistoryTests: XCTestCase {
     XCTAssertEqual(history.items, [bar])
   }
 
+  func testUnlimitedSize() {
+    Defaults[.size] = 0
+    var items: [HistoryItemDecorator] = []
+    for index in 0...14 {
+      items.append(history.add(historyItem(String(index))))
+    }
+    XCTAssertEqual(history.items.count, 15)
+    XCTAssertTrue(history.items.contains(items[0]))
+    XCTAssertTrue(history.items.contains(items[14]))
+  }
+
   private func historyItem(_ value: String) -> HistoryItem {
     let contents = [
       HistoryItemContent(

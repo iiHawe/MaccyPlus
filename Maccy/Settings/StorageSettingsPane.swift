@@ -64,7 +64,7 @@ struct StorageSettingsPane: View {
 
   private let sizeFormatter: NumberFormatter = {
     let formatter = NumberFormatter()
-    formatter.minimum = 1
+    formatter.minimum = 0
     formatter.maximum = 999
     return formatter
   }()
@@ -97,7 +97,7 @@ struct StorageSettingsPane: View {
           TextField("", value: $size, formatter: sizeFormatter)
             .frame(width: 80)
             .help(Text("SizeTooltip", tableName: "StorageSettings"))
-          Stepper("", value: $size, in: 1...999)
+          Stepper("", value: $size, in: 0...999)
             .labelsHidden()
           Text(storageSize)
             .controlSize(.small)
@@ -106,6 +106,14 @@ struct StorageSettingsPane: View {
             .onAppear {
               storageSize = Storage.shared.size
             }
+        }
+        Text("SizeHint", tableName: "StorageSettings")
+          .controlSize(.small)
+          .foregroundStyle(.gray)
+        if size == 0 {
+          Text("UnlimitedWarning", tableName: "StorageSettings")
+            .controlSize(.small)
+            .foregroundStyle(.orange)
         }
       }
 
