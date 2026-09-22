@@ -8,7 +8,7 @@
 - Upstream revision: `c376789`, dated 2026-09-04, checked 2026-09-22.
 - Latest stable upstream tag: `2.7.1` (`eb03eba`). The merged revision also
   includes the six subsequent upstream commits.
-- Release tag: `v2.7.1-plus`.
+- Release tag: `v2.7.1-plus.1` (version 2.7.1, build 63).
 
 ## Preserve on every merge
 
@@ -21,7 +21,7 @@
   and storage remains in the existing app container. Do not reset user defaults
   or recreate the user's database to test a merge.
 - Single-item automatic paste retains the 100 ms delay after closing the popup.
-- Never start the original Sparkle updater or restore its upstream feed.
+- Never link the original Sparkle framework or restore its upstream feed.
   Manual update checks open the MaccyPlus GitHub release page.
 
 ## Build
@@ -36,10 +36,16 @@ xcodebuild -resolvePackageDependencies -project Maccy.xcodeproj -scheme Maccy \
 ./scripts/build-release.sh
 ```
 
-Outputs are `dist/Maccy+.app`, `dist/MaccyPlus-2.7.1.zip`, and its SHA-256 file.
-The script builds arm64 and x86_64, checks both slices and the signature, and
-packages an ad-hoc signed app. It does not install or launch the user's app and
-does not perform Apple notarization.
+Outputs are `dist/Maccy+.app`, `dist/MaccyPlus-2.7.1-63.zip`, and its SHA-256 file.
+The script performs a clean arm64 and x86_64 build, checks both slices and the
+signature, rejects any Sparkle dependency, and packages an ad-hoc signed app.
+The package filename includes the build number so fork fixes are distinguishable
+from the upstream version. Hardened runtime and library validation remain enabled.
+It does not install or launch the user's app and does not perform Apple notarization.
+
+Before publishing, extract the exact ZIP, launch that Release app on macOS, open
+its popup and settings, and confirm the process remains running. Signature checks
+and Debug tests alone do not establish that a Release app can launch.
 
 ## Tests
 
@@ -80,8 +86,29 @@ layout-dependent synthesis of Option+P. No input-source change is required.
   Return, Shift+Arrow selection, Command+click selection, pin, and unpin.
 - Release build succeeded for arm64 and x86_64 with a macOS 14.0 minimum.
 - App signature, fork identity, disabled upstream updates, ZIP integrity, and
-  SHA-256 sidecar were verified. Runtime tests ran on Apple Silicon/macOS 27.0.
+  SHA-256 sidecar were verified. These runtime tests used the Debug build on
+  Apple Silicon/macOS 27.0, not the initially published Release build.
 - Test results and build logs are local under `build/` and are not published.
+
+### Build 63 launch fix
+
+Build 62 passed signature verification but aborted before app startup: the main
+executable was ad-hoc signed with hardened runtime, while the still-linked
+Sparkle framework had a different Team ID. The crash report recorded a DYLD
+library-validation failure. Sparkle was no longer used by the manual updater.
+
+Build 63 removes the package, link dependency, service configuration, and obsolete
+Mach lookup exceptions. Packaging now starts from a clean build and removes the
+old staging app so deleted frameworks cannot survive a directory merge. Release
+signing also omits the development-only `get-task-allow` entitlement.
+
+Verified the exact build 63 ZIP on Apple Silicon/macOS 27.0: the extracted
+Release app launched and stayed running, its popup and General/Storage settings
+opened, and it quit normally. The same extracted app was then installed and
+relaunched from `/Applications/Maccy+.app`; About displayed `2.7.1 (63)`.
+Both architecture slices and the strict code signature check passed, with no
+Sparkle framework or load command in the packaged app. Intel execution was not
+tested on hardware.
 
 ## Future updates
 
