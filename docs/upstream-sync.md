@@ -73,6 +73,16 @@ are numeric so synthesized search works with Arabic and Latin input sources.
 The pin UI helper navigates by keyboard and uses the toolbar button, avoiding
 layout-dependent synthesis of Option+P. No input-source change is required.
 
+### Verified on 2026-09-22
+
+- 97 unit tests passed with no failures.
+- Eight targeted UI tests passed: new copy, search, copy by click, copy by
+  Return, Shift+Arrow selection, Command+click selection, pin, and unpin.
+- Release build succeeded for arm64 and x86_64 with a macOS 14.0 minimum.
+- App signature, fork identity, disabled upstream updates, ZIP integrity, and
+  SHA-256 sidecar were verified. Runtime tests ran on Apple Silicon/macOS 27.0.
+- Test results and build logs are local under `build/` and are not published.
+
 ## Future updates
 
 Fetch and compare upstream against the recorded merged revision. Review changes
