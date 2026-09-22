@@ -5,7 +5,7 @@ import Defaults
 // swiftlint:disable type_body_length
 class ClipboardTests: XCTestCase {
   let clipboard = Clipboard.shared
-  let pasteboard = NSPasteboard.general
+  let pasteboard = Clipboard.shared.pasteboard
   let image = NSImage(named: "NSInfo")!
   let coloredString = NSAttributedString(string: "foo",
                                          attributes: [.foregroundColor: NSColor.red])
@@ -136,8 +136,9 @@ class ClipboardTests: XCTestCase {
     XCTAssertFalse(Defaults[.ignoreOnlyNextEvent])
   }
 
-  func testIgnoreApplication() {
-    Defaults[.ignoredApps] = ["com.apple.dt.Xcode", "com.apple.finder"] // Finder is on Bitrise
+  func testIgnoreApplication() throws {
+    let foregroundBundle = try XCTUnwrap(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    Defaults[.ignoredApps] = [foregroundBundle]
 
     let hookExpectation = expectation(description: "Hook is called")
     hookExpectation.isInverted = true
@@ -150,9 +151,10 @@ class ClipboardTests: XCTestCase {
     waitForExpectations(timeout: 2)
   }
 
-  func testIgnoreAllApplicationsExcept() {
+  func testIgnoreAllApplicationsExcept() throws {
     Defaults[.ignoreAllAppsExceptListed] = true
-    Defaults[.ignoredApps] = ["com.apple.dt.Xcode", "com.apple.finder"] // Finder is on Bitrise
+    let foregroundBundle = try XCTUnwrap(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    Defaults[.ignoredApps] = [foregroundBundle]
 
     let hookExpectation = expectation(description: "Hook is called")
     clipboard.onNewCopy({ (_: HistoryItem) in
@@ -220,6 +222,13 @@ class ClipboardTests: XCTestCase {
     XCTAssertEqual(pasteboard.string(forType: .fileURL), "file://foo.bar")
     XCTAssertEqual(pasteboard.string(forType: .fromMaccy), "")
     XCTAssertEqual(pasteboard.string(forType: .source), "com.foo.bar")
+  }
+
+  @MainActor
+  func testCopyString() {
+    clipboard.copyInMaccy("foo")
+    XCTAssertEqual(pasteboard.string(forType: .string), "foo")
+    XCTAssertEqual(pasteboard.string(forType: .source), NSPasteboard.PasteboardType.fromMaccy.rawValue)
   }
 
   @MainActor

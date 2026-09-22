@@ -1,3 +1,5 @@
+> [!WARNING]
+> **Beware of fake websites impersonating Maccy.** Malicious sites (such as `maccyapp.net` and `maccyapp.com`) distribute malware disguised as Maccy. [**maccy.app**](https://maccy.app) is the **only** official website.
 
 <img width="128px" src="https://maccy.app/img/maccy/Logo.png" alt="Logo" />
 
@@ -13,6 +15,14 @@ Maccy+ adds power-user enhancements on top of the original:
 - **Unlimited history** — set history size to `0` in Preferences to keep an unlimited number of entries
 
 Maccy+ works on macOS Sonoma 14 or higher.
+
+The current release integrates Maccy 2.7.1 and upstream fixes through
+[`c376789`](https://github.com/p0deje/Maccy/commit/c376789), including OCR copying,
+preview improvements, VoiceOver support, orphaned-content cleanup, and the macOS
+26 title-layout hang fix. The fork's multi-selection, unlimited history, bundle
+identity, and delayed automatic paste are preserved.
+
+See [upstream maintenance and build instructions](docs/upstream-sync.md).
 
 <!-- vim-markdown-toc GFM -->
 
@@ -50,6 +60,16 @@ Maccy+ works on macOS Sonoma 14 or higher.
 
 Download the latest version from the [releases](https://github.com/iiHawe/MaccyPlus/releases/latest) page.
 
+Unzip `MaccyPlus-2.7.1.zip` and move `Maccy+.app` to Applications. Quit your
+previous Maccy+ app before opening the new version. Its distinct filename lets
+the original `Maccy.app` remain installed alongside it. The universal build
+supports Apple Silicon and Intel and keeps the `com.hawe.MaccyPlus` identity and
+existing Maccy+ storage location. It does not automatically import the original
+Maccy's separate clipboard database.
+The download is ad-hoc signed, not notarized by Apple. If macOS blocks the first
+launch, use **System Settings → Privacy & Security → Open Anyway** for this app.
+Updates are installed manually. **Check now** opens this fork's release page.
+
 ## Usage
 
 1. <kbd>SHIFT (⇧)</kbd> + <kbd>COMMAND (⌘)</kbd> + <kbd>C</kbd> to popup Maccy+ or click on its icon in the menu bar.
@@ -80,7 +100,7 @@ Multi-select is enabled by default in Maccy+. You can select multiple clipboard 
 By default Maccy+ keeps a limited number of history entries. To store an unlimited number of items:
 
 1. Open Preferences (<kbd>COMMAND (⌘)</kbd> + <kbd>,</kbd>).
-2. Go to the **General** tab.
+2. Go to the **Storage** tab.
 3. Set the **Size** field to `0`.
 
 With size set to `0`, Maccy+ will never automatically remove old entries.

@@ -13,6 +13,9 @@ class Notifier {
   }
 
   static func notify(body: String?, sound: NSSound?) {
+    #if DEBUG
+    guard !AppDelegate.isTesting else { return }
+    #endif
     guard let body else { return }
 
     authorize()

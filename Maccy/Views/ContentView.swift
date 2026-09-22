@@ -42,6 +42,7 @@ struct ContentView: View {
               searchFocused = true
             }
             .onMouseMove {
+              guard !appState.multiSelectionEnabled || !NSEvent.modifierFlags.contains(.command) else { return }
               appState.navigator.isKeyboardNavigating = false
             }
           } slideout: {

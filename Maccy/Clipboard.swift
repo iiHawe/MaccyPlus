@@ -10,7 +10,17 @@ class Clipboard {
   private var onNewCopyHooks: [OnNewCopyHook] = []
   var changeCount: Int
 
-  private let pasteboard = NSPasteboard.general
+  let pasteboard: NSPasteboard = {
+    #if DEBUG
+    if AppDelegate.isTesting {
+      if let name = ProcessInfo.processInfo.environment["MACCY_TEST_PASTEBOARD"] {
+        return NSPasteboard(name: NSPasteboard.Name(name))
+      }
+      return NSPasteboard.withUniqueName()
+    }
+    #endif
+    return .general
+  }()
 
   private var timer: Timer?
 
@@ -63,9 +73,10 @@ class Clipboard {
   }
 
   @MainActor
-  func copy(_ string: String) {
+  func copyInMaccy(_ string: String) {
     pasteboard.clearContents()
     pasteboard.setString(string, forType: .string)
+    pasteboard.setString(NSPasteboard.PasteboardType.fromMaccy.rawValue, forType: .source)
     sync()
     checkForChangesInPasteboard()
   }

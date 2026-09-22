@@ -3,13 +3,29 @@ import XCTest
 
 // swiftlint:disable file_length
 // swiftlint:disable type_body_length
+private struct HistoryItemQuery {
+  let query: XCUIElementQuery
+
+  var allElementsBoundByIndex: [XCUIElement] {
+    query.allElementsBoundByIndex
+  }
+
+  subscript(title: String) -> XCUIElement {
+    query.matching(
+      NSPredicate(format: "label == %@ OR label BEGINSWITH %@", title, "\(title), ")
+    ).firstMatch
+  }
+}
+
 class MaccyUITests: XCTestCase {
   let app = XCUIApplication()
-  let pasteboard = NSPasteboard.general
+  let pasteboard = NSPasteboard.withUniqueName()
 
-  let copy1 = UUID().uuidString
-  let copy2 = UUID().uuidString
-  let copy3 = UUID().uuidString
+  // Numeric fixtures can be typed with either Arabic or Latin input selected.
+  // XCTest cannot synthesize Latin letters through every active input source.
+  let copy1 = UUID().uuidString.filter(\.isNumber)
+  let copy2 = UUID().uuidString.filter(\.isNumber)
+  let copy3 = UUID().uuidString.filter(\.isNumber)
 
   // https://hetima.github.io/fucking_nsimage_syntax
   let image1 = NSImage(named: "NSAddTemplate")!
@@ -30,19 +46,16 @@ class MaccyUITests: XCTestCase {
   let html1 = "<a href='#'>foo</a>".data(using: .utf8)
   let html2 = "<a href='#'>bar</a>".data(using: .utf8)
 
-  let imageType = NSPredicate(
-    format: "elementType == %lu",
-    argumentArray: [XCUIElement.ElementType.image.rawValue]
-  )
-
-  var items: XCUIElementQuery {
-    app.descendants(matching: .any).matching(identifier: "copy-history-item")
+  private var items: HistoryItemQuery {
+    HistoryItemQuery(
+      query: app.descendants(matching: .any).matching(identifier: "copy-history-item")
+    )
   }
 
   var itemTitles: [String] {
     items.allElementsBoundByIndex
       .sorted(by: { $0.frame.origin.y < $1.frame.origin.y })
-      .compactMap { $0.value as? String }
+      .compactMap { $0.label.components(separatedBy: ", ").first }
   }
 
   override func setUp() {
@@ -52,6 +65,11 @@ class MaccyUITests: XCTestCase {
     try? "Hello world".write(to: file2, atomically: true, encoding: .utf8)
 
     app.launchArguments.append("enable-testing")
+    app.launchEnvironment["MACCY_TEST_PASTEBOARD"] = pasteboard.name.rawValue
+    setKeyboardShortcut("popup", keyCode: kVK_ANSI_C, modifiers: cmdKey | shiftKey)
+    setKeyboardShortcut("pin", keyCode: kVK_ANSI_P, modifiers: optionKey)
+    setKeyboardShortcut("delete", keyCode: kVK_Delete, modifiers: optionKey)
+    setKeyboardShortcut("togglePreview", keyCode: kVK_Space, modifiers: controlKey)
     app.launch()
 
     copyToClipboard(copy2)
@@ -112,14 +130,16 @@ class MaccyUITests: XCTestCase {
 
   func testCopyWithClick() {
     popUpWithMouse()
+    scrollIntoViewIfNeeded(items[copy2].firstMatch)
     items[copy2].firstMatch.click()
     assertPasteboardStringEquals(copy2)
   }
 
   func testCopyWithEnter() {
     popUpWithMouse()
-    hover(items[copy2].firstMatch)
-    app.typeKey(.enter, modifierFlags: [])
+    app.typeKey(.downArrow, modifierFlags: [])
+    XCTAssertTrue(items[copy2].isSelected)
+    app.typeKey(.return, modifierFlags: [])
     assertPasteboardStringEquals(copy2)
   }
 
@@ -140,7 +160,8 @@ class MaccyUITests: XCTestCase {
     copyToClipboard(image2)
     copyToClipboard(image1)
     popUpWithMouse()
-    items.matching(imageType).allElementsBoundByIndex[1].click()
+    scrollIntoViewIfNeeded(items.allElementsBoundByIndex[1])
+    hoverAndClick(items.allElementsBoundByIndex[1])
     assertPasteboardDataCountEquals(image2.tiffRepresentation!.count, forType: .tiff)
   }
 
@@ -153,18 +174,20 @@ class MaccyUITests: XCTestCase {
       file1.absoluteString.removingPercentEncoding!,
       file2.absoluteString.removingPercentEncoding!
     ])
-
-    items[file2.absoluteString.removingPercentEncoding!].firstMatch.click()
+    scrollIntoViewIfNeeded(items[file2.absoluteString.removingPercentEncoding!].firstMatch)
+    hoverAndClick(items[file2.absoluteString.removingPercentEncoding!].firstMatch)
     assertPasteboardStringEquals(file2.absoluteString, forType: .fileURL)
   }
 
   func testCopyRTF() {
     copyToClipboard(rtf2, .rtf)
+    popUpWithHotkey()
+    closePopupByClickingOutside()
     copyToClipboard(rtf1, .rtf)
     popUpWithHotkey()
     XCTAssertEqual(itemTitles[0...1], ["foo", "bar"])
-
-    app.staticTexts["bar"].firstMatch.click()
+    scrollIntoViewIfNeeded(items["bar"].firstMatch)
+    hoverAndClick(items["bar"].firstMatch)
     XCTAssertEqual(pasteboard.data(forType: .rtf), rtf2)
   }
 
@@ -173,8 +196,8 @@ class MaccyUITests: XCTestCase {
     copyToClipboard(html1, .html)
     popUpWithMouse()
     XCTAssertEqual(itemTitles[0...1], ["foo", "bar"])
-
-    items["bar"].firstMatch.click()
+    scrollIntoViewIfNeeded(items["bar"].firstMatch)
+    hoverAndClick(items["bar"].firstMatch)
     assertPasteboardDataEquals(html2, forType: .html)
   }
 
@@ -183,6 +206,28 @@ class MaccyUITests: XCTestCase {
     app.typeKey(.downArrow, modifierFlags: [])
     app.typeKey(.enter, modifierFlags: [])
     assertPasteboardStringEquals(copy2)
+  }
+
+  func testMultiSelectWithShiftArrow() {
+    popUpWithMouse()
+    app.typeKey(.downArrow, modifierFlags: [.shift])
+    XCTAssertEqual(items[copy1].value as? String, "1")
+    XCTAssertEqual(items[copy2].value as? String, "2")
+    app.typeKey(.upArrow, modifierFlags: [.shift])
+    XCTAssertEqual(items[copy2].value as? String, "")
+  }
+
+  func testMultiSelectWithCommandClick() {
+    popUpWithMouse()
+    XCUIElement.perform(withKeyModifiers: .command) {
+      items[copy2].click()
+    }
+    XCTAssertEqual(items[copy1].value as? String, "1")
+    XCTAssertEqual(items[copy2].value as? String, "2")
+    XCUIElement.perform(withKeyModifiers: .command) {
+      items[copy2].click()
+    }
+    XCTAssertEqual(items[copy2].value as? String, "")
   }
 
   func testUpArrow() {
@@ -231,8 +276,9 @@ class MaccyUITests: XCTestCase {
 
   func testClear() {
     popUpWithMouse()
+    scrollIntoViewIfNeeded(items[copy2].firstMatch)
     pin(copy2)
-    app.staticTexts["Clear"].click()
+    hoverAndClick(app.buttons["Clear"].firstMatch)
     confirmClear()
     popUpWithMouse()
     assertNotExists(items[copy1])
@@ -242,7 +288,7 @@ class MaccyUITests: XCTestCase {
   func testClearDuringSearch() {
     popUpWithMouse()
     search(copy2)
-    app.staticTexts["Clear"].click()
+    hoverAndClick(app.buttons["Clear"].firstMatch)
     confirmClear()
     popUpWithMouse()
     assertNotExists(items[copy1])
@@ -251,9 +297,10 @@ class MaccyUITests: XCTestCase {
 
   func testClearAll() {
     popUpWithMouse()
+    scrollIntoViewIfNeeded(items[copy2].firstMatch)
     pin(copy2)
     XCUIElement.perform(withKeyModifiers: [.shift]) {
-      app.staticTexts["Clear all"].click()
+      hoverAndClick(app.buttons["Clear all"].firstMatch)
     }
     confirmClear()
     popUpWithMouse()
@@ -263,6 +310,7 @@ class MaccyUITests: XCTestCase {
 
   func testPin() {
     popUpWithMouse()
+    scrollIntoViewIfNeeded(items[copy2].firstMatch)
     pin(copy2)
     XCTAssertEqual(itemTitles[0...1], [copy2, copy1])
 
@@ -274,6 +322,7 @@ class MaccyUITests: XCTestCase {
   func testPinDuringSearch() {
     popUpWithMouse()
     search(copy2)
+    scrollIntoViewIfNeeded(items[copy2].firstMatch)
     pin(copy2)
     assertSearchFieldValue("")
     XCTAssertEqual(itemTitles[0...1], [copy2, copy1])
@@ -281,6 +330,7 @@ class MaccyUITests: XCTestCase {
 
   func testUnpin() {
     popUpWithMouse()
+    scrollIntoViewIfNeeded(items[copy2].firstMatch)
     pin(copy2)
     pin(copy2)
     XCTAssertEqual(itemTitles[0...1], [copy1, copy2])
@@ -293,7 +343,12 @@ class MaccyUITests: XCTestCase {
     assertSearchFieldValue("foo ")
   }
 
-  func testPasteToSearch() {
+  func testPasteToSearch() throws {
+    // NSTextField paste always reads the system clipboard, which isolated tests
+    // deliberately leave untouched. Run this case only with a real pasteboard.
+    guard pasteboard.name == NSPasteboard.general.name else {
+      throw XCTSkip("System paste requires the general clipboard; tests use a private pasteboard.")
+    }
     popUpWithMouse()
     app.typeKey("v", modifierFlags: [.command])
     waitForSearch()
@@ -459,10 +514,7 @@ class MaccyUITests: XCTestCase {
   func testTogglePopupAndCloseOnClickOutside() {
     popUpWithHotkey()
 
-    // Click outside the popup to close it
-    let statusBar = app.statusItems.firstMatch
-    let coordinate = statusBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 10.0))
-    coordinate.click()
+    closePopupByClickingOutside()
     assertNotExists(items[copy1])
 
     // Assert that the hotkeys still work
@@ -475,6 +527,22 @@ class MaccyUITests: XCTestCase {
   private func popUpWithHotkey() {
     simulatePopupHotkey()
     waitUntilPoppedUp()
+  }
+
+  // KeyboardShortcuts persists JSON strings in UserDefaults.standard. Passing them
+  // as launch arguments places them in the isolated, higher-priority NSArgumentDomain.
+  private func setKeyboardShortcut(_ name: String, keyCode: Int, modifiers: Int) {
+    app.launchArguments.append(contentsOf: [
+      "-KeyboardShortcuts_\(name)",
+      #""{\"carbonKeyCode\":\#(keyCode),\"carbonModifiers\":\#(modifiers)}""#
+    ])
+  }
+
+  // Click outside the popup to close it
+  private func closePopupByClickingOutside() {
+    let statusBar = app.statusItems.firstMatch
+    let coordinate = statusBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 10.0))
+    coordinate.click()
   }
 
   private func popUpWithMouse() {
@@ -506,13 +574,13 @@ class MaccyUITests: XCTestCase {
   }
 
   private func waitUntilPoppedUp() {
-    if !app.staticTexts.firstMatch.waitForExistence(timeout: 3) {
+    if !app.dialogs.firstMatch.waitForExistence(timeout: 3) {
       XCTFail("Maccy did not pop up")
     }
   }
 
   private func assertPopupDismissed() {
-    if !app.staticTexts.firstMatch.waitForNonExistence(timeout: 3) {
+    if !app.dialogs.firstMatch.waitForNonExistence(timeout: 3) {
       XCTFail("Maccy did not dismiss")
     }
   }
@@ -550,22 +618,62 @@ class MaccyUITests: XCTestCase {
   }
 
   private func pin(_ title: String) {
-    hover(items[title].firstMatch)
-    app.typeKey("p", modifierFlags: [.option])
+    let titles = itemTitles
+    guard let index = titles.firstIndex(of: title) else {
+      XCTFail("Cannot find item to pin: \(title)")
+      return
+    }
+    for _ in titles {
+      app.typeKey(.upArrow, modifierFlags: [])
+    }
+    for _ in 0..<index {
+      app.typeKey(.downArrow, modifierFlags: [])
+    }
+    let pinButton = app.buttons["pin"].firstMatch
+    if pinButton.exists {
+      pinButton.click()
+    } else {
+      app.buttons["pin.slash"].firstMatch.click()
+    }
     usleep(1_500_000)
   }
 
+  private func hoverAndClick(_ element: XCUIElement) {
+    let coordinate = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    coordinate.hover()
+    usleep(200_000)
+    coordinate.click()
+  }
+
+  private func scrollIntoViewIfNeeded(_ element: XCUIElement) {
+    guard element.exists else {
+      return
+    }
+
+    let container = app.scrollViews["history-scroll-view"].firstMatch
+    guard container.exists else {
+      return
+    }
+
+    var attempts = 0
+    while !container.frame.contains(element.frame) && attempts < 15 {
+      // Negative deltaY scrolls down (reveals elements below the viewport).
+      let delta: CGFloat = element.frame.midY > container.frame.midY ? -10 : 10
+      container.scroll(byDeltaX: 0, deltaY: delta)
+      usleep(100_000)
+      attempts += 1
+    }
+  }
+
   private func hover(_ element: XCUIElement) {
-    element.hover()
-    usleep(20000)
+    element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)).hover()
+    usleep(50_000)
+    element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).hover()
+    usleep(200_000)
   }
 
   private func search(_ string: String) {
-    // NOTE: app.typeText is broken in Sonoma and causes some
-    //       Chars to be submitted with a .command mask (e.g. 'p', 'k' or 'j')
-    string.forEach {
-      app.typeKey("\($0)", modifierFlags: [])
-    }
+    app.textFields.firstMatch.typeText(string)
     waitForSearch()
   }
 
@@ -619,26 +727,23 @@ class MaccyUITests: XCTestCase {
     waitForExpectations(timeout: 3)
   }
 
-  private func assertPasteboardStringEquals(
-    _ expected: String?, forType: NSPasteboard.PasteboardType = .string
-  ) {
-    let predicate = NSPredicate { (object, _) -> Bool in
-      guard let copy = object as? String else {
-        return false
+  private func assertPasteboardStringEquals(_ expected: String?, forType: NSPasteboard.PasteboardType = .string) {
+      let predicate = NSPredicate { (object, _) -> Bool in
+        guard let copy = object as? String else {
+          return false
+        }
+        return self.pasteboard.string(forType: forType) == copy
       }
-
-      return self.pasteboard.string(forType: forType) == copy
+      expectation(for: predicate, evaluatedWith: expected)
+      waitForExpectations(timeout: 3)
     }
-    expectation(for: predicate, evaluatedWith: expected)
-    waitForExpectations(timeout: 3)
-  }
 
   private func assertSearchFieldValue(_ string: String) {
     XCTAssertEqual(app.textFields.firstMatch.value as? String, string)
   }
 
   private func confirmClear() {
-    let button = app.dialogs.firstMatch.buttons["Clear"].firstMatch
+    let button = app.buttons["confirmation-confirm"].firstMatch
     expectation(for: NSPredicate(format: "isHittable = 1"), evaluatedWith: button)
     waitForExpectations(timeout: 3)
     button.click()
