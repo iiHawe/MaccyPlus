@@ -60,7 +60,7 @@ See [upstream maintenance and build instructions](docs/upstream-sync.md).
 
 Download the latest version from the [releases](https://github.com/iiHawe/MaccyPlus/releases/latest) page.
 
-Unzip `MaccyPlus-2.7.1-63.zip` and move `Maccy+.app` to Applications. Quit your
+Unzip `MaccyPlus-2.7.1-64.zip` and move `Maccy+.app` to Applications. Quit your
 previous Maccy+ app before opening the new version. Its distinct filename lets
 the original `Maccy.app` remain installed alongside it. The universal build
 supports Apple Silicon and Intel and keeps the `com.hawe.MaccyPlus` identity and
@@ -70,9 +70,11 @@ The download is ad-hoc signed, not notarized by Apple. If macOS blocks the first
 launch, use **System Settings → Privacy & Security → Open Anyway** for this app.
 Updates are installed manually. **Check now** opens this fork's release page.
 
-Use build 63 or later. Build 62 (`v2.7.1-plus`) has a launch crash caused by an
-unused Sparkle framework with an incompatible signing identity. Build 63 removes
-that dependency and preserves the existing Maccy+ settings and history.
+Use build 64 or later. It fixes the Sparkle signing crash in build 62 and a startup
+freeze when a large history exceeds the configured retention limit. Surplus
+entries are now removed as one batch. Pins and the chosen retention limit are
+preserved. Set Storage → Size to `0` before importing a large history if you want
+to retain every entry.
 
 ## Usage
 

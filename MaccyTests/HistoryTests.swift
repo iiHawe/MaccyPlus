@@ -335,6 +335,37 @@ class HistoryTests: XCTestCase { // swiftlint:disable:this type_body_length
     try assertStorageCounts(items: 15, contents: 15)
   }
 
+  func testReloadOfLargeHistoryKeepsNewestItemsAndPins() async throws {
+    let context = Storage.shared.context
+    for index in 0..<3_000 {
+      let item = historyItem(String(index))
+      item.firstCopiedAt = Date(timeIntervalSince1970: TimeInterval(index))
+    }
+    for pin in ["b", "c", "d"] {
+      let item = historyItem("pinned-\(pin)")
+      item.pin = pin
+    }
+    try context.save()
+
+    Defaults[.size] = 0
+    try await history.load()
+    XCTAssertEqual(history.all.count, 3_003)
+
+    Defaults[.size] = 999
+    let started = Date()
+    try await history.load()
+    let elapsed = Date().timeIntervalSince(started)
+    print("Large-history reload: \(elapsed) seconds")
+    XCTAssertLessThan(elapsed, 10, "Reloading an oversized store must not freeze startup")
+    XCTAssertEqual(history.unpinnedItems.map(\.title), (2_001..<3_000).reversed().map(String.init))
+    XCTAssertEqual(Set(history.pinnedItems.compactMap { $0.item.pin }), Set(["b", "c", "d"]))
+    try assertStorageCounts(items: 1_002, contents: 1_002)
+
+    try await history.load()
+    XCTAssertEqual(history.all.count, 1_002)
+    try assertStorageCounts(items: 1_002, contents: 1_002)
+  }
+
   func testSizeOneKeepsOnlyNewestUnpinnedItem() throws {
     Defaults[.size] = 1
     let pinned = history.add(historyItem("pinned"))

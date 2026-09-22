@@ -121,9 +121,7 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   private func limitHistorySize(to maxSize: Int) {
     guard Defaults[.size] > 0, maxSize >= 0 else { return }
     let unpinned = all.filter(\.isUnpinned)
-    if unpinned.count >= maxSize {
-      unpinned[maxSize...].forEach(delete)
-    }
+    delete(Array(unpinned.dropFirst(maxSize)))
   }
 
   @MainActor
@@ -287,17 +285,30 @@ class History: ItemsContainer { // swiftlint:disable:this type_body_length
   @MainActor
   func delete(_ item: HistoryItemDecorator?) {
     guard let item else { return }
+    delete([item])
+  }
 
-    cleanup(item)
-    withLogging("Removing history item") {
-      deleteFromStorage(item.item)
+  @MainActor
+  private func delete(_ removedItems: [HistoryItemDecorator]) {
+    guard !removedItems.isEmpty else { return }
+
+    // A restored or imported store can exceed the configured limit by thousands
+    // of items. Remove that batch with one save and one shortcut refresh, rather
+    // than repeatedly scanning and saving the entire history on the main thread.
+    let removedIDs = Set(removedItems.map(\.id))
+    let removedModelIDs = Set(removedItems.map { $0.item.persistentModelID })
+    all.removeAll { removedIDs.contains($0.id) }
+    items.removeAll { removedIDs.contains($0.id) }
+    sessionLog.removeValues { removedModelIDs.contains($0.persistentModelID) }
+
+    withLogging("Removing \(removedItems.count) history items") {
+      for item in removedItems {
+        cleanup(item)
+        deleteFromStorage(item.item)
+      }
       Storage.shared.context.processPendingChanges()
       try? Storage.shared.context.save()
     }
-
-    all.removeAll { $0 == item }
-    items.removeAll { $0 == item }
-    sessionLog.removeValues { $0 == item.item }
 
     updateUnpinnedShortcuts()
     Task {

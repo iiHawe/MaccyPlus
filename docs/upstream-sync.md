@@ -8,7 +8,7 @@
 - Upstream revision: `c376789`, dated 2026-09-04, checked 2026-09-22.
 - Latest stable upstream tag: `2.7.1` (`eb03eba`). The merged revision also
   includes the six subsequent upstream commits.
-- Release tag: `v2.7.1-plus.1` (version 2.7.1, build 63).
+- Release tag: `v2.7.1-plus.2` (version 2.7.1, build 64).
 
 ## Preserve on every merge
 
@@ -17,6 +17,9 @@
   unselected rows must not show a selection number.
 - History size `0` means unlimited on both insertion and reload. Positive limits
   apply only to unpinned entries, including the size-one edge case.
+- Trim oversized histories in one batch, with one persistence save and shortcut
+  refresh. Calling single-item deletion repeatedly can freeze the main thread
+  for minutes after restoring or importing a large store.
 - Release bundle identifier stays `com.hawe.MaccyPlus`, display name `Maccy+`,
   and storage remains in the existing app container. Do not reset user defaults
   or recreate the user's database to test a merge.
@@ -36,7 +39,7 @@ xcodebuild -resolvePackageDependencies -project Maccy.xcodeproj -scheme Maccy \
 ./scripts/build-release.sh
 ```
 
-Outputs are `dist/Maccy+.app`, `dist/MaccyPlus-2.7.1-63.zip`, and its SHA-256 file.
+Outputs are `dist/Maccy+.app`, `dist/MaccyPlus-2.7.1-64.zip`, and its SHA-256 file.
 The script performs a clean arm64 and x86_64 build, checks both slices and the
 signature, rejects any Sparkle dependency, and packages an ad-hoc signed app.
 The package filename includes the build number so fork fixes are distinguishable
@@ -109,6 +112,32 @@ relaunched from `/Applications/Maccy+.app`; About displayed `2.7.1 (63)`.
 Both architecture slices and the strict code signature check passed, with no
 Sparkle framework or load command in the packaged app. Intel execution was not
 tested on hardware.
+
+### Build 64 large-history startup fix
+
+After importing a store larger than the retention limit, a live process sample
+showed the main thread spending all its time in `History.load`, repeated
+`History.delete` calls, and `updateUnpinnedShortcuts`. The app stayed alive at
+100% of one CPU core while trimming entries individually.
+
+Retention now deletes surplus items as one batch. It removes the affected
+decorators and session references with sets, deletes their stored content, saves
+once, and refreshes shortcuts once. Single-item deletion uses the same path.
+Positive retention limits and the unlimited setting retain their existing meaning.
+
+Validation on 2026-09-22:
+
+- All 23 history tests passed, including size-one, unlimited, pins, duplicate
+  merging, content cleanup, and a new large-history reload regression.
+- The new fixture loads 3,003 items without a limit, then trims to 999 unpinned
+  items plus three pins and reloads again. Trimming took 0.49 seconds in Debug,
+  preserved the newest entries and pins, and left no orphaned content.
+- The exact Release ZIP was extracted, signature-checked, and installed. Three
+  fresh processes were launched with the existing persistent store. The popup,
+  About, and settings responded, both intervening quits completed normally, and
+  idle CPU returned to 0%. About showed `2.7.1 (64)`.
+- The persisted retention setting stayed at 999, the three pins survived, and
+  the store passed SQLite's integrity check after quitting and relaunching.
 
 ## Future updates
 
